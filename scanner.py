@@ -3,15 +3,18 @@
 # Tool to measure bandwidth of a network using Ookla's Speedtest.net
 # servers.
 #
-# NOTE: Scanning for AP's reqiures root privileges
+# NOTE: Scanning for AP's requires root privileges
 #
 #
 
+import csv
 from gps import *
 import iwlib.iwconfig as iwc
 import os
 import pyric
 import pyric.pyw as pyw
+import speedtest
+import subprocess
 import sys
 import time
 from wifi import Cell,Scheme
@@ -76,6 +79,22 @@ class Card:
         else:
             return None
 
+"""
+Helper functions to check on GPSD, ADB connection
+"""
+def gpsd_is_running():
+    output = subprocess.check_output("ps ax", shell=True).decode('utf-8')
+    if 'gpsd tcp' in output:
+        return True
+    else:
+        return False
+
+def adb_forward_is_up():
+    output = subprocess.check_output("adb forward --list", shell=True).decode('utf-8')
+    if 'tcp:4352 tcp:4352' in output:
+        return True
+    else:
+        return False
 
 
 if __name__ == '__main__':
