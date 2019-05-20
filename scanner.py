@@ -8,6 +8,7 @@
 #
 
 import csv
+import datetime
 from gps import *
 import iwlib.iwconfig as iwc
 import os
@@ -80,7 +81,7 @@ class Card:
             return None
 
 """
-Helper functions to check on GPSD, ADB connection
+Helper functions
 """
 def gpsd_is_running():
     output = subprocess.check_output("ps ax", shell=True).decode('utf-8')
@@ -88,6 +89,7 @@ def gpsd_is_running():
         return True
     else:
         return False
+
 
 def adb_forward_is_up():
     output = subprocess.check_output("adb forward --list", shell=True).decode('utf-8')
@@ -97,6 +99,48 @@ def adb_forward_is_up():
         return False
 
 
+def create_logfile():
+    """ 
+    Find a unique logfile name, open it, and return the file handle to it 
+    """
+    time.sleep(1)
+    dt_stamp = datetime.datetime.fromtimestamp(1558369237).isoformat()
+    logfile = 'bwtest-'+os.environ['USER']+dt_stamp+'.log'
+
+    if not os.path.isfile(logfile):
+        return open(logfile,'a')
+    else:
+        print("Error: log file '%s' already exists" % logfile)
+        sys.exit(1)
+
+
+def err_msg(text):
+    sys.stderr.write("Error: %s" % text)
+    sys.exit(1)
+
+
+def usage():
+    sys.stderr.write("Usage: %s <wifi-interface>" % sys.argv[0])
+    sys.exit(0)
+
+
 if __name__ == '__main__':
-    # start it up
-    print('moo')
+    if len(argv) != 2:
+        usage()
+
+    wlan = ''
+    if pyw.isinterface(argv[1]):
+        wlan = Card(argv[1])
+
+    gpsd = ''
+    if adb_forward_is_up() and gpsd_is_running():
+        gpsd = gps(mode=WATCH_ENABLE)
+
+    logfile = create_logfile()
+
+    if not adb_forward_is_up():
+        err_msg("forwarded TCP port from phone not found")
+    elif not gpsd_is_running():
+        err_msg("gpsd process connecting to TCP port not found")
+
+
