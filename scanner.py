@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python2
 #
 # Tool to measure bandwidth of a network using Ookla's Speedtest.net
 # servers.
@@ -28,7 +28,7 @@ class Card:
     def __init__(self, interface):
         self.interface = interface
         self.pyw_card = pyw.getcard(interface)
-        
+
     def associated(self):
         if pyw.link(self.pyw_card):
             return True
