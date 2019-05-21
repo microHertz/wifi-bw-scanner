@@ -21,6 +21,12 @@ import time
 from wifi import Cell,Scheme
 
 
+class GpsdLockFailure(Exception):
+    """
+    Basic exception raised if unable to acquire a TPV message from GPSD
+    """
+
+
 class Card:
     """
     Convenience class for handling the wifi interface
@@ -43,7 +49,7 @@ class Card:
 
     def ap_bssid(self):
         if self.associated():
-            return pyw.link(self.pyw_card)['bssid']
+            return pyw.link(self.pyw_card)['bssid'].upper()
         else:
             return None
 
@@ -91,6 +97,30 @@ def gpsd_is_running():
         return False
 
 
+def get_gps_coords(gpsd):
+    """
+    Obtain to GPS coordinates from gpsd. If unable to retrieve a
+    Time, Position, Velocity (TPV) (i.e. no GPS lock) message after a certain
+    number of attempts, raise an exception.
+    """
+    try:
+        for attempts in range(0,15):
+            report = gpsd.next()
+            if report['class'] == 'TPV':
+                lat = getattr(report,'lat',0.0)
+                lon = getattr(report,'lon',0.0)
+                break
+        else:
+            # Exhausted attempts, raise exception
+            raise GpsdLockFailure('Exhausted attempts to grab GPS lock')
+
+    except (KeyboardInterrupt, GpsdLockFailure):
+        # gpsd interrupted, return sentinel values
+        lat, lon = 0, 0
+
+    return lat, lon
+
+
 def adb_forward_is_up():
     output = subprocess.check_output("adb forward --list", shell=True).decode('utf-8')
     if 'tcp:4352 tcp:4352' in output:
@@ -114,33 +144,72 @@ def create_logfile():
         sys.exit(1)
 
 
+def find_best_ap(wlan):
+    """
+    Given current associated BSSID and signal at time of speed test, search for
+    another AP with better characteristics.
+    """
+    cells = Cell.where(wlan['int'], find_eduroam)
+    best_cell = None
+    for idx,cell in enumerate(cells):
+        if wlan['addr'] != cell.address and wlan['signal'] < cell.signal:
+            best_cell = cell
+
+    return best_cell
+
+
+def find_eduroam(cell):
+    """
+    This function is meant to be be used with wifi.Cell.where(), which has
+    a call to filter() to sort through results.
+    """
+    if 'eduroam' == cell.ssid:
+        return True
+    return False
+
+
 def err_msg(text):
-    sys.stderr.write("Error: %s" % text)
+    sys.stderr.write("Error: %s\n" % text)
     sys.exit(1)
 
 
 def usage():
-    sys.stderr.write("Usage: %s <wifi-interface>" % sys.argv[0])
+    sys.stderr.write("Usage: %s <wifi-interface>\n" % sys.argv[0])
     sys.exit(0)
 
 
+def scan(speedtest, wlan, gpsd, logfile):
+    print('WIP')
+
+
 if __name__ == '__main__':
-    if len(argv) != 2:
+    if len(sys.argv) != 2:
         usage()
 
     wlan = ''
-    if pyw.isinterface(argv[1]):
-        wlan = Card(argv[1])
+    if pyw.isinterface(sys.argv[1]):
+        wlan = Card(sys.argv[1])
+    else:
+        err_msg("invalid wifi interface " + sys.argv[1])
 
-    gpsd = ''
-    if adb_forward_is_up() and gpsd_is_running():
-        gpsd = gps(mode=WATCH_ENABLE)
-
-    logfile = create_logfile()
+    if not wlan.associated():
+        err_msg("wifi card not associated with AP")
 
     if not adb_forward_is_up():
         err_msg("forwarded TCP port from phone not found")
     elif not gpsd_is_running():
         err_msg("gpsd process connecting to TCP port not found")
+
+    gpsd = gps(mode=WATCH_ENABLE)
+
+    logfile = create_logfile()
+
+    spdtest = speedtest.Speedtest()
+
+    scan(spdtest, wlan, gpsd, logfile)
+
+    # Exiting
+    logfile.close()
+
 
 
