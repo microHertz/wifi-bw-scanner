@@ -22,10 +22,17 @@ import time
 from wifi import Cell,Scheme
 
 
-class GpsdLockFailure(Exception):
-    """
-    Basic exception raised if unable to acquire a TPV message from GPSD
-    """
+class GpsdFailure(Exception):
+    """ Based GPSD exception """
+
+class GpsdLockFailure(GpsdFailure):
+    """ Unable to acquire a TPV message from GPSD """
+
+class GpsdProcessNotFound(GpsdFailure):
+    """ GPSD process not found or incorrect arguments """
+
+class GpsdAdbBridgeError(GpsdFailure):
+    """ ADB port forward from phone is missing """
 
 
 class Card(object):
@@ -132,8 +139,7 @@ class ScanLog(object):
         'better-ap': better_ap_columns_dict
     }
 
-    def __init__(self, gpsd=None, wlan=None, test_runs=3):
-        self.gpsd = gpsd
+    def __init__(self, wlan=None, test_runs=3):
         self.logfile = self.new_logfile()
         self.spdtest = speedtest.Speedtest()
         self.spdtest.get_best_server()
@@ -149,13 +155,12 @@ class ScanLog(object):
         """
         time.sleep(1)
         dt_stamp = self.get_timestamp()
+        logfile = 'bwtest-{}-{}.log'.format(os.environ['USER'], \
+            self.get_timestamp())
         logfile = 'bwtest-'+os.environ['USER']+dt_stamp+'.log'
 
         if not os.path.isfile(logfile):
             return open(logfile,'a')
-        else:
-            print("Error: log file '%s' already exists" % logfile)
-            sys.exit(1)
 
     def close_logfile(self):
         self.logfile.flush()
@@ -178,7 +183,6 @@ class ScanLog(object):
         self.curr_log['test-server-city'] = self.spdtest._best['name']
         self.curr_log['test-server-url'] = self.spdtest._best['url']
         self.curr_log['test-server-latency'] = self.spdtest._best['latency']
-        self.curr_log['lat'], self.curr_log['lon'] = get_gps_coords(self.gpsd)
         self.curr_log['download'] = self.run_download_test()
         self.curr_log['upload'] = self.run_upload_test()
         wdict = self.wlan.get_wlan_dict()
@@ -228,24 +232,35 @@ class ScanLog(object):
         return time.strftime('%Y-%m-%dT%H:%M:%S', time.localtime())
 
 
-"""
-Helper functions
-"""
-def gpsd_is_running():
-    output = subprocess.check_output("ps ax", shell=True).decode('utf-8')
-    if 'gpsd tcp' in output:
-        return True
-    else:
-        return False
-
-
-def get_gps_coords(gpsd):
+class GpsdHandler(object):
     """
-    Obtain to GPS coordinates from gpsd. If unable to retrieve a
-    Time, Position, Velocity (TPV) (i.e. no GPS lock) message after a certain
-    number of attempts, raise an exception.
+    Handler for the GPS daemon and functions depending on it
     """
-    try:
+    def __init__(self):
+        """ Perform initial checks. Any failures raise an exception. """
+        self.adb_forward_is_up()
+        self.daemon_is_up()
+        self.gpsd = gps(mode=WATCH_ENABLE)
+
+    def adb_forward_is_up(self):
+        output = subprocess.check_output("adb forward --list", shell=True).decode('utf-8')
+        if 'tcp:4352 tcp:4352' not in output:
+            raise GpsdAdbBridgeError('Missing ADB port forward')
+
+    def daemon_is_up(self):
+        output = subprocess.check_output("ps ax", shell=True).decode('utf-8')
+        if 'gpsd tcp' not in output:
+            raise GpsdProcessNotFound('Missing or invalid gpsd process')
+
+    def get_gps_coords(gpsd):
+        """
+        Obtain to GPS coordinates from gpsd. If unable to retrieve a
+        Time, Position, Velocity (TPV) (i.e. no GPS lock) message after a certain
+        number of attempts, raise an exception.
+        """
+        self.adb_forward_is_up()
+        self.daemon_is_up()
+
         for attempts in range(0,15):
             report = gpsd.next()
             if report['class'] == 'TPV':
@@ -254,23 +269,14 @@ def get_gps_coords(gpsd):
                 break
         else:
             # Exhausted attempts, raise exception
-            raise GpsdLockFailure('Exhausted attempts to grab GPS lock')
+            raise GpsdLockFailure('Unable to obtain GPS TPV message')
 
-    except (KeyboardInterrupt, GpsdLockFailure):
-        # gpsd interrupted, return sentinel values
-        lat, lon = 0, 0
-
-    return lat, lon
+        return lat, lon
 
 
-def adb_forward_is_up():
-    output = subprocess.check_output("adb forward --list", shell=True).decode('utf-8')
-    if 'tcp:4352 tcp:4352' in output:
-        return True
-    else:
-        return False
-
-
+"""
+Helper functions
+"""
 def find_best_ap(wlan_dict):
     """
     Given current associated BSSID and signal at time of speed test, search for
