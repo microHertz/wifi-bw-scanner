@@ -28,7 +28,7 @@ class GpsdLockFailure(Exception):
     """
 
 
-class Card:
+class Card(object):
     """
     Convenience class for handling the wifi interface
     """
