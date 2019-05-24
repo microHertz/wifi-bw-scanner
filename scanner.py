@@ -9,6 +9,7 @@
 
 import csv
 import datetime
+from getch import getch
 from gps import *
 from io import StringIO
 import iwlib.iwconfig as iwc
@@ -43,6 +44,14 @@ class Card(object):
     def __init__(self, interface):
         self.interface = interface
         self.pyw_card = pyw.getcard(interface)
+
+    def __str__(self):
+        output = 'SSID: {}\tBSSID: {}\tAssociated: {}\n\n'.format(self.ssid(), \
+                self.ap_bssid(), self.associated())
+        output += 'RSSI: {}\tQuality: {}/70\tFrequency: {} GHz\n\n'.format(self.ap_rssi(), \
+                self.ap_quality(), self.ap_frequency())
+        output += 'Channel: {}\tBitrate: {} Mbps\n'.format(self.ap_channel(), self.bitrate())
+        return output
 
     def associated(self):
         if pyw.link(self.pyw_card):
@@ -115,7 +124,7 @@ class ScanLog(object):
     """
     Class to encapsulate scanning and logging functions
     """
-    better_ap_columns_dict = {
+    bap_columns_dict = {
         'bssid': '',
         'rssi': 0,
         'quality': 0,
@@ -136,18 +145,26 @@ class ScanLog(object):
         'test-server-city': '',
         'test-server-url': '',
         'test-server-latency': 0.0,
-        'better-ap': {}
+        'bap-bssid': '',
+        'bap-rssi': 0,
+        'bap-quality': 0,
+        'bap-frequency': 0.0
     }
+
+    columns_order = ['time','ssid','bssid','rssi','quality','frequency','lat', \
+            'lon','download','upload','test-server-city','test-server-url', \
+            'test-server-latency','bap-bssid','bap-rssi','bap-quality','bap-frequency']
 
     def __init__(self, wlan=None, test_runs=3):
         self.logfile = self.new_logfile()
+        self.logwriter = csv.writer(self.logfile,delimiter=',',lineterminator='\n')
         self.spdtest = speedtest.Speedtest()
         self.spdtest.get_best_server()
         self.test_runs = test_runs
         self.wlan = wlan
 
         self.curr_log = {}
-        self.curr_better_ap = {}
+        self.curr_bap = {}
 
     def new_logfile(self):
         """ 
@@ -163,16 +180,16 @@ class ScanLog(object):
             return open(logfile,'a')
 
     def close_logfile(self):
-        self.logfile.flush()
         self.logfile.close()
 
     def flush_logfile(self):
         self.logfile.flush()
 
-    def get_log_pretest(self):
-        pass
+    def log_gps_coords(self, lat, lon):
+        self.curr_log['lat'] = lat
+        self.curr_log['lon'] = lon
 
-    def run_tests(self):
+    def new_logentry(self):
         self.curr_log = self.log_columns_dict.copy()
         self.curr_log['time'] = self.get_timestamp()
         self.curr_log['ssid'] = self.wlan.ssid()
@@ -183,10 +200,9 @@ class ScanLog(object):
         self.curr_log['test-server-city'] = self.spdtest._best['name']
         self.curr_log['test-server-url'] = self.spdtest._best['url']
         self.curr_log['test-server-latency'] = self.spdtest._best['latency']
+
+    def log_download_test(self):
         self.curr_log['download'] = self.run_download_test()
-        self.curr_log['upload'] = self.run_upload_test()
-        wdict = self.wlan.get_wlan_dict()
-        self.curr_log['better-ap'] = find_best_ap(wdict)
 
     def run_download_test(self):
         """
@@ -199,6 +215,9 @@ class ScanLog(object):
 
         return dl_rate / self.test_runs
 
+    def log_upload_test(self):
+        self.curr_log['upload'] = self.run_upload_test()
+
     def run_upload_test(self):
         """
         Run upload speed test an arbitrary amount and find sample mean
@@ -210,19 +229,17 @@ class ScanLog(object):
 
         return ul_rate / self.test_runs
 
-    @classmethod
-    def csv_header(cls):
+    def log_csv_header(self):
         """
         Return header row of CSV columns
         """
-        return cls.log_columns_dict.keys()
+        self.logwriter.writerow(self.columns_order)
+        self.flush_logfile()
 
-    @classmethod
-    def csv_header_better_ap(cls):
-        """
-        Return header row of CSV volumns for better AP
-        """
-        return cls.better_ap_columns_dict.keys()
+    def log_scan_results(self):
+        """ Write out scan results """
+        self.logwriter.writerow([self.curr_log[key] for key in self.columns_order])
+        self.flush_logfile()
 
     @staticmethod
     def get_timestamp():
@@ -277,6 +294,26 @@ class GpsdHandler(object):
 """
 Helper functions
 """
+def main(wlan_card):
+    wlan = Card(wlan_card)
+    scan = ScanLog(wlan)
+    scan.log_csv_header()
+    print('Log file: %s' % scan.logfile)
+
+    try:
+        gpsd = GpsdHandler()
+    except (GpsdAdbBridgeError, GpsdProcessNotFound) as err:
+        sys.stderr.write(err+'\n')
+        sys.exit(1)
+
+
+    # Main event loop
+    while True:
+        scan.new_logentry()
+
+
+
+
 def find_best_ap(wlan_dict):
     """
     Given current associated BSSID and signal at time of speed test, search for
@@ -284,7 +321,7 @@ def find_best_ap(wlan_dict):
     """
     cells = Cell.where(wlan_dict['interface'], find_eduroam)
     best_cell = None
-    cell_dict = ScanLog.better_ap_columns_dict.copy()
+    cell_dict = ScanLog.bap_columns_dict.copy()
     for idx,cell in enumerate(cells):
         if wlan_dict['bssid'] != cell.address:
             if same_band(wlan_dict['frequency'],float(cell.frequency.split(' ')[0])) \
@@ -326,18 +363,16 @@ def usage():
     sys.stderr.write("Usage: %s <wifi-interface>\n" % sys.argv[0])
 
 
-def scan():
-    pass
-
 if __name__ == '__main__':
     if len(sys.argv) != 2:
         usage()
         sys.exit(0)
 
-    if not pyw.isinterface(sys.argv[1]):
-        err_msg("invalid wifi interface " + sys.argv[1])
+    wlan_card = sys.argv[1]
+    if not pyw.isinterface(wlan_card):
+        err_msg("invalid wifi interface " + wlan_card)
         usage()
         sys.exit(1)
 
-
+    main(wlan_card)
 
