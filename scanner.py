@@ -136,7 +136,7 @@ class ScanLog(object):
         'test-server-city': '',
         'test-server-url': '',
         'test-server-latency': 0.0,
-        'better-ap': better_ap_columns_dict
+        'better-ap': {}
     }
 
     def __init__(self, wlan=None, test_runs=3):
@@ -320,42 +320,24 @@ def same_band(freq1, freq2):
 
 def err_msg(text):
     sys.stderr.write("Error: %s\n" % text)
-    sys.exit(1)
 
 
 def usage():
     sys.stderr.write("Usage: %s <wifi-interface>\n" % sys.argv[0])
-    sys.exit(0)
 
 
-def scan(speedtest, wlan, gpsd, logfile):
+def scan():
     pass
 
 if __name__ == '__main__':
     if len(sys.argv) != 2:
         usage()
+        sys.exit(0)
 
-    wlan = ''
-    if pyw.isinterface(sys.argv[1]):
-        wlan = Card(sys.argv[1])
-    else:
+    if not pyw.isinterface(sys.argv[1]):
         err_msg("invalid wifi interface " + sys.argv[1])
+        usage()
+        sys.exit(1)
 
-    if not wlan.associated():
-        err_msg("wifi card not associated with AP")
-
-    if not adb_forward_is_up():
-        err_msg("forwarded TCP port from phone not found")
-    elif not gpsd_is_running():
-        err_msg("gpsd process connecting to TCP port not found")
-
-    gpsd = gps(mode=WATCH_ENABLE)
-
-
-    spdtest = speedtest.Speedtest()
-
-    scan(spdtest, wlan, gpsd, logfile)
-
-    # Exiting
 
 
