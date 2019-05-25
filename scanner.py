@@ -174,7 +174,6 @@ class ScanLog(object):
         dt_stamp = self.get_timestamp()
         logfile = 'bwtest-{}-{}.log'.format(os.environ['USER'], \
             self.get_timestamp())
-        logfile = 'bwtest-'+os.environ['USER']+dt_stamp+'.log'
 
         if not os.path.isfile(logfile):
             return open(logfile,'w')
