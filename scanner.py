@@ -43,7 +43,7 @@ class Card(object):
 
     def __init__(self, interface):
         self.interface = interface
-        self.pyw_card = pyw.getcard(interface)
+        self.pyw_card = pyw.getcard(self.interface)
 
     def __str__(self):
         output = 'SSID: {}\tBSSID: {}\tAssociated: {}\n\n'.format(self.ssid(), \
@@ -177,7 +177,7 @@ class ScanLog(object):
         logfile = 'bwtest-'+os.environ['USER']+dt_stamp+'.log'
 
         if not os.path.isfile(logfile):
-            return open(logfile,'a')
+            return open(logfile,'w')
 
     def close_logfile(self):
         self.logfile.close()
@@ -269,7 +269,7 @@ class GpsdHandler(object):
         if 'gpsd tcp' not in output:
             raise GpsdProcessNotFound('Missing or invalid gpsd process')
 
-    def get_gps_coords(gpsd):
+    def get_gps_coords(self):
         """
         Obtain to GPS coordinates from gpsd. If unable to retrieve a
         Time, Position, Velocity (TPV) (i.e. no GPS lock) message after a certain
@@ -279,7 +279,7 @@ class GpsdHandler(object):
         self.daemon_is_up()
 
         for attempts in range(0,15):
-            report = gpsd.next()
+            report = self.gpsd.next()
             if report['class'] == 'TPV':
                 lat = getattr(report,'lat',0.0)
                 lon = getattr(report,'lon',0.0)
@@ -298,20 +298,83 @@ def main(wlan_card):
     wlan = Card(wlan_card)
     scan = ScanLog(wlan)
     scan.log_csv_header()
-    print('Log file: %s' % scan.logfile)
 
     try:
         gpsd = GpsdHandler()
     except (GpsdAdbBridgeError, GpsdProcessNotFound) as err:
-        sys.stderr.write(err+'\n')
+        print(str(err))
+        scan.close_logfile()
         sys.exit(1)
 
 
     # Main event loop
-    while True:
+    run_scanner = True
+    while run_scanner:
         scan.new_logentry()
 
+        wifi_status_wrapper(wlan)
+        gps_wrapper(gpsd, scan)
 
+        display_menu = True
+        while display_menu:
+            menu()
+            key = getch()
+
+            # Parse selection
+            if '\r' == key or '\n' == key:
+                print('Running download test. Please be patient.')
+                scan.log_download_test()
+                print('Download test: COMPLETE')
+                scan.log_upload_test()
+                print('Running upload test. Please be patient.')
+                print('Upload test: COMPLETE')
+                scan.log_scan_results()
+                print('Logged scan results.\n')
+                display_menu = False
+            elif 'w' == key:
+                wifi_status_wrapper(wlan)
+            elif 'g' == key:
+                gps_wrapper(gpsd, scan)
+            elif '\x03' == key or 'x' == key: # ctrl-c
+                run_scanner = False
+                break
+
+    # Shutdown scanner
+    print('Shutting down scanner.')
+    scan.close_logfile()
+
+
+def menu():
+    prompt = """
+    Enter: log speed test
+    g: retry acquiring GPS lock
+    w: re-scan WiFi device
+    x: shutdown scanner
+    """
+    print(prompt)
+
+
+def wifi_status_wrapper(wlan):
+    try:
+        print(wlan)
+    except pyric.error as pyr_err:
+        print('Pyric has communications from with the WiFi card.')
+        print('Wait 30 seconds and try to re-scan the WiFi device')
+
+
+def gps_wrapper(gpsd, scan):
+    try:
+        lat, lon = gpsd.get_gps_coords()
+    except (GpsdAdbBridgeError, GpsdProcessNotFound) as err:
+        print(err)
+        scan.close_logfile()
+        sys.exit(1)
+    except GpsdLockFailure as lock_err:
+        print(lock_err)
+        print('Try repositioning phone. Refresh getting GPS')
+    else:
+        print('GPS coordinates logged.\nLAT: {}\nLON: {}'.format(lat,lon))
+        scan.log_gps_coords(lat, lon)
 
 
 def find_best_ap(wlan_dict):
