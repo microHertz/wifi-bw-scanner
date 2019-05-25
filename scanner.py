@@ -14,8 +14,7 @@ from gps import *
 from io import StringIO
 import iwlib.iwconfig as iwc
 import os
-import pyric
-import pyric.pyw as pyw
+from pythonwifi.iwlibs import Wireless,Iwquality
 import speedtest
 import subprocess
 import sys
@@ -43,7 +42,7 @@ class Card(object):
 
     def __init__(self, interface):
         self.interface = interface
-        self.pyw_card = pyw.getcard(self.interface)
+        self.pywifi = Wireless(self.interface)
 
     def __str__(self):
         output = 'SSID: {}\tBSSID: {}\tAssociated: {}\n\n'.format(self.ssid(), \
@@ -54,48 +53,49 @@ class Card(object):
         return output
 
     def associated(self):
-        if pyw.link(self.pyw_card):
+        if self.pywifi.getEssid():
             return True
         else:
             return False
 
     def bitrate(self):
         if self.associated():
-            rate = iwc.get_iwconfig(self.interface)['BitRate'].decode('utf-8')
-            return float(rate.split(' ')[0])
+            return float(self.pywifi.getBitrate().split(' ')[0])
         else:
             return 0.0
 
     def ap_bssid(self):
         if self.associated():
-            return pyw.link(self.pyw_card)['bssid'].upper()
+            return self.pywifi.getAPaddr()
         else:
             return ''
 
+    """
     def ap_channel(self):
         if self.associated():
             return pyw.chget(self.pyw_card)
         else:
             return 0
+    """
 
     def ap_frequency(self):
         if self.associated():
-            return pyw.link(self.pyw_card)['freq']/1000.0
+            return float(self.pywifi.getFrequency().split(' ')[0])
         else:
             return 0.0
 
     def mode(self):
-        return pyw.modeget(self.pyw_card)
+        return self.pywifi.getMode()
 
     def ap_rssi(self):
         if self.associated():
-            return pyw.link(self.pyw_card)['rss']
+            return int(subprocess.check_output('iwconfig '+self.interface,shell=True).decode('utf-8').split('\n')[6].split('=')[2].split(' ')[0])
         else:
             return 0
 
     def ssid(self):
         if self.associated():
-            return pyw.link(self.pyw_card)['ssid'].decode('utf-8')
+            return self.pywifi.getEssid()
         else:
             return ''
 
@@ -112,7 +112,7 @@ class Card(object):
             'bitrate': self.bitrate(),
             'ssid': self.ssid(),
             'bssid': self.ap_bssid(),
-            'channel': self.ap_channel(),
+            #'channel': self.ap_channel(),
             'rssi': self.ap_rssi(),
             'quality': self.ap_quality(),
             'frequency': self.ap_frequency(),
@@ -335,8 +335,8 @@ def main(wlan_card):
                 print('Running download test. Please be patient.')
                 scan.log_download_test()
                 print('Download test: COMPLETE')
-                scan.log_upload_test()
                 print('Running upload test. Please be patient.')
+                scan.log_upload_test()
                 print('Upload test: COMPLETE')
                 print('Scanning for better AP on same radio band.')
                 scan.log_better_ap()
