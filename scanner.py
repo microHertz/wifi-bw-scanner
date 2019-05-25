@@ -241,6 +241,15 @@ class ScanLog(object):
         self.logwriter.writerow([self.curr_log[key] for key in self.columns_order])
         self.flush_logfile()
 
+    def log_better_ap(self):
+        wdict = self.wlan.get_wlan_dict()
+        bap = find_best_ap(wdict)
+        if bap:
+            self.curr_log['bap-bssid'] = bap['bssid']
+            self.curr_log['bap-rssi'] = bap['rssi']
+            self.curr_log['bap-quality'] = bap['quality']
+            self.curr_log['bap-frequency'] = bap['frequency']
+
     @staticmethod
     def get_timestamp():
         """
@@ -328,6 +337,8 @@ def main(wlan_card):
                 scan.log_upload_test()
                 print('Running upload test. Please be patient.')
                 print('Upload test: COMPLETE')
+                print('Scanning for better AP on same radio band.')
+                scan.log_better_ap()
                 scan.log_scan_results()
                 print('Logged scan results.\n')
                 display_menu = False
@@ -336,8 +347,8 @@ def main(wlan_card):
             elif 'g' == key:
                 gps_wrapper(gpsd, scan)
             elif '\x03' == key or 'x' == key: # ctrl-c
+                display_menu = False
                 run_scanner = False
-                break
 
     # Shutdown scanner
     print('Shutting down scanner.')
