@@ -138,6 +138,7 @@ class ScanLog(object):
         'rssi': 0,
         'quality': 0,
         'frequency': 0.0,
+        'bitrate': 0.0,
         'lat': 0.0,
         'lon': 0.0,
         'download': 0.0,
@@ -151,8 +152,8 @@ class ScanLog(object):
         'bap-frequency': 0.0
     }
 
-    columns_order = ['time','ssid','bssid','rssi','quality','frequency','lat', \
-            'lon','download','upload','test-server-city','test-server-url', \
+    columns_order = ['time','ssid','bssid','rssi','quality','frequency','bitrate', \
+            'lat', 'lon','download','upload','test-server-city','test-server-url', \
             'test-server-latency','bap-bssid','bap-rssi','bap-quality','bap-frequency']
 
     def __init__(self, wlan=None, test_runs=3):
@@ -196,6 +197,7 @@ class ScanLog(object):
         self.curr_log['rssi'] = self.wlan.ap_rssi()
         self.curr_log['quality'] = self.wlan.ap_quality()
         self.curr_log['frequency'] = self.wlan.ap_frequency()
+        self.curr_log['bitrate'] = self.wlan.bitrate()
         self.curr_log['test-server-city'] = self.spdtest._best['name']
         self.curr_log['test-server-url'] = self.spdtest._best['url']
         self.curr_log['test-server-latency'] = self.spdtest._best['latency']
