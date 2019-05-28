@@ -89,7 +89,13 @@ class Card(object):
 
     def ap_rssi(self):
         if self.associated():
-            return int(subprocess.check_output('iwconfig '+self.interface,shell=True).decode('utf-8').split('\n')[6].split('=')[2].split(' ')[0])
+            output = subprocess.check_output('iwconfig '+self.interface, shell=True).split('\n')
+            rssi = 0
+            for line in output:
+                if 'Signal level' in line:
+                    rssi = int(line.split('=')[-1].split()[0])
+                    break
+            return rssi
         else:
             return 0
 
