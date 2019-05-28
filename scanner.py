@@ -444,7 +444,9 @@ if __name__ == '__main__':
         sys.exit(0)
 
     wlan_card = sys.argv[1]
-    if not pyw.isinterface(wlan_card):
+    try:
+        iwc.get_iwconfig(wlan_card)
+    except:
         err_msg("invalid wifi interface " + wlan_card)
         usage()
         sys.exit(1)
