@@ -49,7 +49,7 @@ class Card(object):
                 self.ap_bssid(), self.associated())
         output += 'RSSI: {}\tQuality: {}/70\tFrequency: {} GHz\n\n'.format(self.ap_rssi(), \
                 self.ap_quality(), self.ap_frequency())
-        output += 'Channel: {}\tBitrate: {} Mbps\n'.format(self.ap_channel(), self.bitrate())
+        output += 'Bitrate: {} Mbps\n'.format(self.bitrate())
         return output
 
     def associated(self):
@@ -163,10 +163,14 @@ class ScanLog(object):
             'test-server-latency','bap-bssid','bap-rssi','bap-quality','bap-frequency']
 
     def __init__(self, wlan=None, test_runs=3):
+        try:
+            self.spdtest = speedtest.Speedtest()
+            self.spdtest.get_best_server()
+        except:
+            print('Unable to communicate out to the internet')
+
         self.logfile = self.new_logfile()
         self.logwriter = csv.writer(self.logfile,delimiter=',',lineterminator='\n')
-        self.spdtest = speedtest.Speedtest()
-        self.spdtest.get_best_server()
         self.test_runs = test_runs
         self.wlan = wlan
 
@@ -338,6 +342,7 @@ def main(wlan_card):
 
             # Parse selection
             if '\r' == key or '\n' == key:
+                gps_wrapper(gpsd, scan)
                 print('Running download test. Please be patient.')
                 scan.log_download_test()
                 print('Download test: COMPLETE')
@@ -373,11 +378,7 @@ def menu():
 
 
 def wifi_status_wrapper(wlan):
-    try:
-        print(wlan)
-    except pyric.error as pyr_err:
-        print('Pyric has communications from with the WiFi card.')
-        print('Wait 30 seconds and try to re-scan the WiFi device')
+    print(wlan)
 
 
 def gps_wrapper(gpsd, scan):
