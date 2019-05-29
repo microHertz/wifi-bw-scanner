@@ -299,6 +299,7 @@ class GpsdHandler(object):
         self.daemon_is_up()
 
         for attempts in range(0,15):
+            time.sleep(5)
             report = self.gpsd.next()
             if report['class'] == 'TPV':
                 lat = getattr(report,'lat',0.0)
