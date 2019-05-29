@@ -412,9 +412,13 @@ def find_best_ap(wlan_dict):
     else:
         if best_cell:
             cell_dict['bssid'] = best_cell.address
-            cell_dict['signal'] = best_cell.signal
+            print('bap bssid: {}'.format(best_cell.address))
+            cell_dict['rssi'] = best_cell.signal
+            print('bap rssi: {}'.format(best_cell.signal))
             cell_dict['quality'] = int(best_cell.quality.split('/')[0])
+            print('bap quality: {}'.format(best_cell.quality.split('/')[0]))
             cell_dict['frequency'] = float(cell.frequency.split(' ')[0])
+            print('bap frequency: {}'.format(cell.frequency.split(' ')[0]))
 
     return cell_dict
 
