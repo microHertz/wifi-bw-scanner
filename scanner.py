@@ -10,11 +10,12 @@
 import csv
 import datetime
 from getch import getch
-from gps import *
-from io import StringIO
+from io import RawIOBase
 import iwlib.iwconfig as iwc
 import os
+import pynmea2
 from pythonwifi.iwlibs import Wireless,Iwquality
+import socket
 import speedtest
 import subprocess
 import sys
@@ -269,6 +270,16 @@ class ScanLog(object):
         return time.strftime('%Y-%m-%dT%H:%M:%S', time.localtime())
 
 
+class SocketIO(RawIOBase):
+    def __init__(self, sock):
+        self.sock = sock
+    def read(self, sz=-1):
+        if (sz == -1): sz=0x00000100
+        return self.sock.recv(sz)
+    def seekable(self):
+        return False
+
+
 class GpsdHandler(object):
     """
     Handler for the GPS daemon and functions depending on it
@@ -276,18 +287,13 @@ class GpsdHandler(object):
     def __init__(self):
         """ Perform initial checks. Any failures raise an exception. """
         self.adb_forward_is_up()
-        self.daemon_is_up()
-        self.gpsd = gps(mode=WATCH_ENABLE)
+        self.nmea_source = ('127.0.0.1', 4352)
+        self.sock = None
 
     def adb_forward_is_up(self):
         output = subprocess.check_output("adb forward --list", shell=True).decode('utf-8')
         if 'tcp:4352 tcp:4352' not in output:
             raise GpsdAdbBridgeError('Missing ADB port forward')
-
-    def daemon_is_up(self):
-        output = subprocess.check_output("ps ax", shell=True).decode('utf-8')
-        if 'gpsd tcp' not in output:
-            raise GpsdProcessNotFound('Missing or invalid gpsd process')
 
     def get_gps_coords(self):
         """
@@ -296,20 +302,35 @@ class GpsdHandler(object):
         number of attempts, raise an exception.
         """
         self.adb_forward_is_up()
-        self.daemon_is_up()
+        self.open_socket()
+        fd = SocketIO(self.sock)
 
-        for attempts in range(0,15):
-            time.sleep(5)
-            report = self.gpsd.next()
-            if report['class'] == 'TPV':
-                lat = getattr(report,'lat',0.0)
-                lon = getattr(report,'lon',0.0)
-                break
-        else:
-            # Exhausted attempts, raise exception
-            raise GpsdLockFailure('Unable to obtain GPS TPV message')
+        try:
+            gga_reads = 0
+            for nmea_sentence in fd:
+                if nmea_sentence.find('GGA') > 0:
+                    gga_reads += 1
+                    # spin through some sentences to ensure fresh data
+                    if gga_reads > 5:
+                        msg = pynmea2.parse(nmea_sentence)
+                        lat = msg.latitude
+                        lon = msg.longitude
+                        break
 
+        except (GpsdLockFailure, KeyboardInterrupt):
+            raise GpsdLockFailure('Unable to obtain GPS position message')
+            self.close_socket()
+
+        self.close_socket()
         return lat, lon
+
+    def close_socket(self):
+        self.sock.close()
+        self.sock = None
+
+    def open_socket(self):
+        self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.sock.connect(self.nmea_source)
 
 
 """
@@ -322,7 +343,7 @@ def main(wlan_card):
 
     try:
         gpsd = GpsdHandler()
-    except (GpsdAdbBridgeError, GpsdProcessNotFound) as err:
+    except GpsdAdbBridgeError as err:
         print(str(err))
         scan.close_logfile()
         sys.exit(1)
@@ -344,12 +365,16 @@ def main(wlan_card):
             # Parse selection
             if '\r' == key or '\n' == key:
                 gps_wrapper(gpsd, scan)
-                print('Running download test. Please be patient.')
-                scan.log_download_test()
-                print('Download test: COMPLETE')
-                print('Running upload test. Please be patient.')
-                scan.log_upload_test()
-                print('Upload test: COMPLETE')
+                if wlan.associated() and connected_to_internet():
+                    print('Running download test. Please be patient.')
+                    scan.log_download_test()
+                    print('Download test: COMPLETE')
+                    time.sleep(3)
+                    print('Running upload test. Please be patient.')
+                    scan.log_upload_test()
+                    print('Upload test: COMPLETE')
+                else:
+                    print('No internet connectivity. Skipping speed tests.')
                 print('Scanning for better AP on same radio band.')
                 scan.log_better_ap()
                 scan.log_scan_results()
@@ -382,8 +407,16 @@ def wifi_status_wrapper(wlan):
     print(wlan)
 
 
+def connected_to_internet():
+    retval = os.system('ping -c 1 -w3 1.1.1.1 > /dev/null 2>&1')
+    if retval == 0:
+        return True
+
+    return False
+
 def gps_wrapper(gpsd, scan):
     try:
+        print('Obtaining GPS coordinates')
         lat, lon = gpsd.get_gps_coords()
     except (GpsdAdbBridgeError, GpsdProcessNotFound) as err:
         print(err)
