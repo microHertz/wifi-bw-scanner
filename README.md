@@ -13,7 +13,9 @@ signal information will be visualized as a heat map.
 
 The following modules are necessary to use this tool:
 
-* [gps](http://catb.org/gpsd/)
+* [getch](https://pypi.org/project/getch/)
 * [iwlib](https://github.com/nathan-hoad/python-iwlib)
-* [Pyric](https://github.com/wraith-wireless/PyRIC)
+* [Pynmea2](https://github.com/Knio/pynmea2)
+* [Pythonwifi](https://git.tuxfamily.org/pythonwifi/pythonwifi.git/)
+* [Speedtest-cli](https://github.com/sivel/speedtest-cli)
 * [wifi](https://wifi.readthedocs.io/en/latest/index.html)
