@@ -12,6 +12,12 @@ coordinates, and correlated signal strength and quality will be recorded
 as well. Once the data has been gathered, the bandwidth test results and 
 signal information will be visualized as a heat map.
 
+## Report
+
+The [final report](Final-Report.pdf) details project scope, program
+development, testing procedures, and subsequent statistical analysis and
+data visualization.
+
 ## Dependencies
 
 The following modules are necessary to use this tool:
@@ -35,9 +41,3 @@ to locally map that port to a Linux host where the script runs.
 The script takes the WiFi interface name as its only argument. The `eduroam`
 SSID is set statically in the script. Main operation is driven by a
 self-explanatory menu system.
-
-## Report
-
-The [final report](Final-Report.pdf) details project scope, program
-development, testing procedures, and subsequent statistical analysis and
-data visualization.
