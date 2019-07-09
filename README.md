@@ -1,3 +1,6 @@
+![](report-cover-image.png)
+*WiFi bandwidth heat map*
+
 # WiFi Bandwidth Assessement and Visualization Tool
 
 ## Summary
