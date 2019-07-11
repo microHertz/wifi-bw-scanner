@@ -18,6 +18,11 @@ The [final report](Final-Report.pdf) details project scope, program
 development, testing procedures, and subsequent statistical analysis and
 data visualization.
 
+### Heat Map Visualization
+
+Download bandwidth [heat map](https://csiflabs.cs.ucdavis.edu/~mhankins/downloadHeatmap.html)  
+Upload bandwidth [heat map](https://csiflabs.cs.ucdavis.edu/~mhankins/uploadHeatmap.html)
+
 ## Dependencies
 
 The following modules are necessary to use this tool:
