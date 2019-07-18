@@ -7,10 +7,11 @@
     
 The intent of this project was to assess the bandwidth of the Eduroam wifi
 network around a select area of the UC Davis campus. A systematic series 
-of speed tests were performed where along with the results, the GPS 
-coordinates, and correlated signal strength and quality were recorded 
-as well. Once the data was gathered, statistical analysis along several metrics
-was was conducted and the bandwidth test results were visualized as a heat map.
+of speed tests were performed where, along with the results, the GPS 
+coordinates and correlated signal strength/quality were recorded as well. 
+Once the data was gathered, statistical analysis was conducted along 
+several metrics and the bandwidth test results were visualized as a heat 
+map.
 
 ## Report
 
